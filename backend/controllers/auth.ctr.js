@@ -1,12 +1,13 @@
-import { userSchema } from "../types/userSchema.js"
+import { signinSchema, signupSchema } from "../types/userSchema.js"
 import { client } from '../db.js'
 import bcrypt from 'bcrypt'
+import crypto from 'crypto'
 import generateTokenAndSetCookie from "../utils/generateToken.js"
-import sendVerificationEmail, { sendWelcomeEmail } from "../mailtrap/emails.js"
+import sendVerificationEmail, { sendPasswordResetEmail, sendResetSuccessEmail, sendWelcomeEmail } from "../mailtrap/emails.js"
 
 export async function signup(req,res){
     try {
-        const userData = userSchema.safeParse(req.body)
+        const userData = signupSchema.safeParse(req.body)
 
         if(!userData.success) return res.status(400).json({msg: 'Invalid Inputs'})
         
@@ -64,7 +65,31 @@ export async function verifyEmail(req,res) {
 }
 
 export async function signin(req,res){
+     try {
 
+        const parsedData = signinSchema.safeParse(req.body)
+
+        if(!parsedData.success) return res.status(400).json({msg: 'Invalid credentials', success: false})
+
+        const {email, password} = parsedData.data
+
+        const user = await client.user.findFirst({where: {email}})
+
+        if(!user) return res.status(400).json({msg: 'user not found'})
+
+        const isPasswordValid = await bcrypt.compare(password, user.password)
+
+        if(!isPasswordValid) res.status(400).json({msg: 'Incorrect password'})
+
+        generateTokenAndSetCookie(res,user.id)
+
+       const updatedUser =  await client.user.update({where: {email}, data: {lastlogin: new Date()}})
+
+        res.status(200).json({msg: 'User signed in successfully',updatedUser})
+
+     } catch (e) {
+        res.status(500).json({msg: 'Internal server error' + e.message})
+     }
 }
 
 export async function signout(req,res){
@@ -72,3 +97,68 @@ export async function signout(req,res){
      res.status(200).json({msg: 'Logged out successfully'})
 }
 
+export async function forgotPassword(req,res){
+    const {email} = req.body
+    try {
+
+        const user = await client.user.findFirst({where: {email}})
+
+        if(!user) return res.status(400).json({msg: 'User not found'})
+
+        const resetToken = crypto.randomBytes(20).toString('hex')
+        const resetTokenExpiresAt = new Date(Date.now() + 60 * 60  * 1000)
+
+        await client.user.update({where: {email}, data: {resetPasswordToken: resetToken, resetPasswordExpiresAt: resetTokenExpiresAt}})
+
+        await sendPasswordResetEmail(user.email,`${process.env.CLIENT_URL}/reset-password/${resetToken}`)
+
+        res.status(200).json({msg: 'Password reset email successfully sent'})
+
+    } catch(e) {
+         res.status(500).json({msg: 'Error occured while resetting password'})
+    }
+}
+
+export async function resetPassword(req,res){
+    try {
+        
+      const token = req.params.token
+      const {password} = req.body
+
+      const user = await client.user.findFirst({where: {resetPasswordToken: token, resetPasswordExpiresAt: {gt: new Date()}}})
+
+      if(!user) return res.status(400).json({msg: 'Invalid or expired token'})
+
+      const hashedPassword = await bcrypt.hash(password,10)
+
+      await client.user.update({
+        where: {email: user.email},
+        data: {
+            password: hashedPassword,
+            resetPasswordToken: null,
+            resetPasswordExpiresAt: null
+        }
+      })
+
+   await sendResetSuccessEmail(user.email)
+
+   res.status(200).json({msg: 'Password changed successfully'})
+
+    } catch (e) {
+        res.status(500).json({msg: 'Error occured while resetting password'})
+    }
+}
+
+export async function checkAuth(req,res){
+    try {
+
+        const user = await client.user.findFirst({where: {id: req.userId}})
+
+        if(!user) return res.status(400).json({msg: 'User not found'})
+
+        res.status(200).json({msg: 'User found successfully', user})
+
+    } catch (e) {
+        res.status(400).json({msg: 'Error while authenticating'})
+    }
+}
