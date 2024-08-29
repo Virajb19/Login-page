@@ -3,12 +3,16 @@ import Input from "../components/Input";
 import { Mail, Lock } from "lucide-react";
 import { useGSAP } from "@gsap/react";
 import gsap from "gsap";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import axios from "axios";
+import { BACKEND_URL } from "../config";
 
 export default function Login() {
 
    const [email,setEmail] = useState("")
    const [password,setPassword] = useState("")
+
+   const navigate = useNavigate()
 
    useGSAP(() => {
      gsap.from('#login', {
@@ -26,7 +30,10 @@ export default function Login() {
             <Input icon={<Lock />} text="Password" onChange={e => setPassword(e.target.value)}/>
             </div>
             <Link to={'/forgot-password'} className="text-green-500 ml-[1.5rem] mb-[1rem]">Forgot Password?</Link>
-            <button className="bg-gradient-to-r from-[#078255] to-green-400 text-white text-xl rounded-lg font-semibold p-3 mb-[2rem] mx-[1.5rem] hover:scale-95">Login</button>
+            <button onClick={async () => {
+                await axios.post(`${BACKEND_URL}/api/auth/signin/`, {email, password})
+                navigate('/')
+            }} className="bg-gradient-to-r from-[#078255] to-green-400 text-white text-xl rounded-lg font-semibold p-3 mb-[2rem] mx-[1.5rem] hover:scale-95">Login</button>
             <div className="bg-[#0E1F22] text-gray-400 flex justify-center gap-1 p-[1rem] rounded-b-xl text-sm">
                <span>Don't have an account?</span>
                <Link to={'/signup'} className="text-green-500">Sign up</Link>

@@ -23,13 +23,13 @@ export async function signup(req,res){
 
         const verificationToken = Math.floor(Math.random() * 900000 + 100000).toString()
 
-        const user = await client.user.create({data: {username, email, password: hashedPassword, verificationToken, verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)}})
+        const user = await client.user.create({data: {username, email, password: hashedPassword, createdAt: new Date() ,verificationToken, verificationTokenExpiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000)}})
   
         generateTokenAndSetCookie(res,user.id)     
         
         await sendVerificationEmail(user.email, verificationToken)
 
-        res.status(201).json({msg: 'user created successfully'})
+        res.status(201).json({msg: 'user created successfully', user})
 
     } catch(e) {
          res.status(400).json({msg: e.message})
@@ -123,7 +123,7 @@ export async function resetPassword(req,res){
     try {
         
       const token = req.params.token
-      const {password} = req.body
+      const {password} = req.body // VERIFY OLD PASSWORD
 
       const user = await client.user.findFirst({where: {resetPasswordToken: token, resetPasswordExpiresAt: {gt: new Date()}}})
 

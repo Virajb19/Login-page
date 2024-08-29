@@ -18,6 +18,7 @@ model User {
   username String @unique
   email String @unique
   password String
+  createdAt DateTime
   lastlogin DateTime @default(now())
   isVerified Boolean @default(false)
   resetPasswordToken String?
